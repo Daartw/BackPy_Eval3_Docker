@@ -18,3 +18,7 @@ env/
 # IDE configurations
 .idea/
 .vscode/
+
+# Herramientas
+.pytest_cache/
+.ruff_cache/

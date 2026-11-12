@@ -1,20 +1,29 @@
-# Imagen base oficial de Python
-FROM python:3.11-slim
+# Servicio de productos (Flask + gunicorn)
+FROM python:3.12-slim
 
-# Directorio de trabajo dentro del contenedor
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    FLASK_ENV=production
+
 WORKDIR /app
 
-# Copiar archivo de dependencias primero (aprovecha la caché de capas)
+# Dependencias primero (aprovecha la caché de capas)
 COPY requirements.txt ./
+RUN pip install -r requirements.txt
 
-# Instalar dependencias de Python
-RUN pip install --no-cache-dir -r requirements.txt
+COPY app.py wsgi.py ./
 
-# Copiar el código fuente
-COPY app.py ./
+# El proceso no corre como root
+RUN useradd --no-create-home --uid 1000 app
+USER app
 
-# Exponer el puerto del servicio
 EXPOSE 8082
 
-# Comando de inicio
-CMD ["python", "app.py"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/health' % os.getenv('PORT', '8082'), timeout=4)" || exit 1
+
+# Servidor WSGI de producción (el servidor de desarrollo de Flask no se usa en el contenedor).
+# --preload crea la tabla y los datos iniciales una sola vez, antes de lanzar los workers.
+CMD ["sh", "-c", "exec gunicorn --preload --bind 0.0.0.0:${PORT:-8082} --workers ${WEB_CONCURRENCY:-2} --access-logfile - wsgi:app"]
