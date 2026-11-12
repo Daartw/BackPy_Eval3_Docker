@@ -1,78 +1,96 @@
-# Backend 2 - Product Service
+# Product Service — Backend Python
 
-Backend en Python (Flask) para gestión de productos con base de datos MySQL.
+[![CI](https://github.com/Daartw/BackPy_Eval3_Docker/actions/workflows/ci.yml/badge.svg)](https://github.com/Daartw/BackPy_Eval3_Docker/actions/workflows/ci.yml)
+
+API REST de gestión de productos construida con **Python, Flask y MySQL**, empaquetada con Docker.
+Es uno de los tres servicios de una aplicación full stack dockerizada:
+
+| Servicio | Repositorio | Puerto |
+|---|---|---|
+| Usuarios | [BackJs_Eval3_Docker](https://github.com/Daartw/BackJs_Eval3_Docker) | 8081 |
+| Productos (este) | `BackPy_Eval3_Docker` | 8082 |
+| Frontend | [Front_Eval3_Docker](https://github.com/Daartw/Front_Eval3_Docker) | 80 |
 
 ## Características
 
-- API REST para gestión de productos
-- CRUD completo de productos
-- Búsqueda por nombre, precio y stock
-- Base de datos MySQL
-- Configuración vía archivo .env
+- CRUD completo de productos y búsqueda por nombre, precio y stock.
+- Lectura pública; escritura protegida con API key.
+- Validación de entrada y consultas SQL parametrizadas.
+- Servidor de producción **gunicorn**, imagen Docker sin root y con *healthcheck*.
+- Pruebas automatizadas, lint con reglas de seguridad y auditoría de dependencias en CI.
 
 ## Requisitos
 
-- Python 3.8 o superior
+- Python 3.12 o superior
 - MySQL 8.0 o superior
-- pip
 
 ## Configuración
 
-1. Copiar el archivo de ejemplo:
 ```bash
 cp .env.example .env
 ```
 
-2. Editar `.env` con sus credenciales de MySQL:
-```
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=tu_password
-DB_NAME=products_db
-PORT=8082
-```
+| Variable | Descripción |
+|---|---|
+| `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | Conexión a MySQL |
+| `PORT` | Puerto del servicio (por defecto 8082) |
+| `FLASK_ENV` | `production` exige definir `CORS_ORIGINS` |
+| `CORS_ORIGINS` | Orígenes del frontend autorizados, separados por coma |
+| `ADMIN_API_KEY` | Clave para crear, editar y eliminar productos (cabecera `X-API-Key`) |
+| `FLASK_DEBUG` | `1` activa el modo debug, solo en desarrollo local |
 
-3. Crear la base de datos en MySQL:
+Crea la base de datos y un usuario propio para el servicio (evita usar `root`):
+
 ```sql
 CREATE DATABASE products_db;
-```
-
-## Instalación
-
-```bash
-pip install -r requirements.txt
+CREATE USER 'products_app'@'%' IDENTIFIED BY 'una_clave_segura';
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE ON products_db.* TO 'products_app'@'%';
 ```
 
 ## Ejecutar
 
 ```bash
-python app.py
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements-dev.txt
+
+python app.py                      # desarrollo, en http://127.0.0.1:8082
+pytest                             # pruebas (no requieren MySQL)
+ruff check .                       # lint
 ```
 
-El servidor iniciará en el puerto 8082.
+Con Docker:
+
+```bash
+docker build -t backpy_eval3 .
+docker run --rm -p 8082:8082 --env-file .env backpy_eval3
+```
 
 ## Endpoints
 
-- `POST /api/products` - Crear nuevo producto
-- `GET /api/products` - Obtener todos los productos
-- `GET /api/products/{id}` - Obtener producto por ID
-- `GET /api/products/search?name=xxx` - Buscar productos por nombre
-- `GET /api/products/search?minPrice=xxx&maxPrice=yyy` - Buscar por rango de precio
-- `GET /api/products/search?minStock=xxx` - Buscar por stock mínimo
-- `PUT /api/products/{id}` - Actualizar producto
-- `DELETE /api/products/{id}` - Eliminar producto
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| GET | `/health` | Público | Estado del servicio y de la base de datos |
+| GET | `/api/products` | Público | Listar productos |
+| GET | `/api/products/{id}` | Público | Obtener un producto |
+| GET | `/api/products/search` | Público | Buscar por `name`, `minPrice`, `maxPrice`, `minStock` |
+| POST | `/api/products` | `X-API-Key` | Crear un producto |
+| PUT | `/api/products/{id}` | `X-API-Key` | Actualizar un producto |
+| DELETE | `/api/products/{id}` | `X-API-Key` | Eliminar un producto |
 
-## Ejemplo de Uso
+Crear un producto:
 
-Crear producto:
 ```bash
 curl -X POST http://localhost:8082/api/products \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: $ADMIN_API_KEY" \
   -d '{"name":"Laptop HP","description":"Laptop de 15.6 pulgadas","price":899.99,"stock":15,"icon":"💻"}'
 ```
 
-Obtener productos:
-```bash
-curl http://localhost:8082/api/products
-```
+## Seguridad
+
+Ver [SECURITY.md](SECURITY.md) para las medidas implementadas y cómo reportar una vulnerabilidad.
+
+## Autor
+
+Daniel Araya Rebolledo — [@Daartw](https://github.com/Daartw)
