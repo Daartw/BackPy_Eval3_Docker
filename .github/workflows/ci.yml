@@ -2,7 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # deps/** permite validar actualizaciones en una rama antes de llevarlas a main
+    branches: [main, "deps/**"]
   pull_request:
 
 concurrency:
